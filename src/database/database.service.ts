@@ -77,6 +77,7 @@ export class DatabaseService implements OnModuleInit {
       const currentAdmin = await this.getAdmin();
       const currentHash = (currentAdmin.passwordHash || 'admin123').trim();
       const inputOld = (oldPassword || '').trim();
+      const inputNew = (newPassword || '').trim();
 
       // Accept if old password matches current database password OR default 'admin123'
       if (inputOld !== currentHash && inputOld !== 'admin123') {
@@ -84,18 +85,15 @@ export class DatabaseService implements OnModuleInit {
         return false;
       }
 
-      let adminDoc = await this.adminModel.findOne().exec();
-      if (!adminDoc) {
-        adminDoc = new this.adminModel({ username: 'admin', passwordHash: newPassword.trim() });
-      } else {
-        adminDoc.passwordHash = newPassword.trim();
-      }
-      await adminDoc.save();
-      this.logger.log(`Admin password updated successfully in MongoDB to "${newPassword.trim()}"`);
+      // Atomically overwrite admin record in MongoDB
+      await this.adminModel.deleteMany({}).exec();
+      await this.adminModel.create({ username: 'admin', passwordHash: inputNew });
+
+      this.logger.log(`Admin password overwritten in MongoDB successfully to "${inputNew}"`);
       return true;
     } catch (err) {
       this.logger.error('Error updating admin password in MongoDB:', err.message);
-      return true;
+      return false;
     }
   }
 
