@@ -72,6 +72,24 @@ export class DatabaseService implements OnModuleInit {
     return { username: 'admin', passwordHash: 'admin123' };
   }
 
+  async updateAdminPassword(oldPassword: string, newPassword: string): Promise<boolean> {
+    try {
+      let admin = await this.adminModel.findOne().exec();
+      if (!admin) {
+        admin = await this.adminModel.create({ username: 'admin', passwordHash: 'admin123' });
+      }
+      if (admin.passwordHash !== oldPassword) {
+        return false;
+      }
+      admin.passwordHash = newPassword;
+      await admin.save();
+      return true;
+    } catch (err) {
+      this.logger.error('Error updating admin password in MongoDB:', err.message);
+      return false;
+    }
+  }
+
   async getEmployees(): Promise<Employee[]> {
     try {
       const docs = await this.employeeModel.find().exec();

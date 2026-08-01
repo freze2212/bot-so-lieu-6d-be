@@ -10,6 +10,11 @@ export class AuthController {
     return await this.authService.login(body.username, body.password);
   }
 
+  @Post('change-password')
+  async changePassword(@Body() body: { oldPassword?: string; newPassword?: string }) {
+    return await this.authService.changePassword(body.oldPassword, body.newPassword);
+  }
+
   @Post('logout')
   logout() {
     return this.authService.logout();

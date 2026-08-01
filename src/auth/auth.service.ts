@@ -33,6 +33,20 @@ export class AuthService {
     throw new UnauthorizedException('Sai tài khoản hoặc mật khẩu Admin');
   }
 
+  async changePassword(oldPassword?: string, newPassword?: string) {
+    if (!oldPassword || !newPassword) {
+      throw new BadRequestException('Vui lòng nhập Mật khẩu hiện tại và Mật khẩu mới');
+    }
+    if (newPassword.trim().length < 6) {
+      throw new BadRequestException('Mật khẩu mới phải có ít nhất 6 ký tự');
+    }
+    const success = await this.db.updateAdminPassword(oldPassword.trim(), newPassword.trim());
+    if (!success) {
+      throw new BadRequestException('Mật khẩu hiện tại không chính xác');
+    }
+    return { success: true, message: 'Đổi mật khẩu Admin thành công!' };
+  }
+
   logout() {
     return { success: true, message: 'Đã đăng xuất thành công' };
   }
