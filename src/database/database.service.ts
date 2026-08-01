@@ -74,15 +74,23 @@ export class DatabaseService implements OnModuleInit {
 
   async updateAdminPassword(oldPassword: string, newPassword: string): Promise<boolean> {
     try {
-      let admin = await this.adminModel.findOne().exec();
-      if (!admin) {
-        admin = await this.adminModel.create({ username: 'admin', passwordHash: 'admin123' });
-      }
-      if (admin.passwordHash !== oldPassword) {
+      const currentAdmin = await this.getAdmin();
+      const currentHash = (currentAdmin.passwordHash || 'admin123').trim();
+      const inputOld = (oldPassword || '').trim();
+
+      if (currentHash !== inputOld) {
+        this.logger.warn(`Admin password change rejected: old password mismatch`);
         return false;
       }
-      admin.passwordHash = newPassword;
-      await admin.save();
+
+      let adminDoc = await this.adminModel.findOne().exec();
+      if (!adminDoc) {
+        adminDoc = new this.adminModel({ username: 'admin', passwordHash: newPassword.trim() });
+      } else {
+        adminDoc.passwordHash = newPassword.trim();
+      }
+      await adminDoc.save();
+      this.logger.log('Admin password updated successfully in MongoDB');
       return true;
     } catch (err) {
       this.logger.error('Error updating admin password in MongoDB:', err.message);
