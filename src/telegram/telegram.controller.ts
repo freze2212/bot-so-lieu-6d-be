@@ -16,18 +16,17 @@ export class TelegramController {
   }
 
   @Post('send-now')
-  sendNow(@Body() body: { botToken?: string; chatId?: string; feUrl?: string; messageText?: string }) {
-    return this.telegramService.sendDailyReminder(body.botToken, body.chatId, body.feUrl, body.messageText);
+  async sendNow(@Body() body: { botToken?: string; chatId?: string; feUrl?: string; messageText?: string }) {
+    return await this.telegramService.sendDailyReminder(body.botToken, body.chatId, body.feUrl, body.messageText);
   }
 
   @Post('send-unreported-now')
-  sendUnreportedNow(@Body() body: { botToken?: string; chatId?: string; feUrl?: string; messageText?: string }) {
-    return this.telegramService.sendUnreportedReminder(body.botToken, body.chatId, body.feUrl, body.messageText);
+  async sendUnreportedNow(@Body() body: { botToken?: string; chatId?: string; feUrl?: string; messageText?: string }) {
+    return await this.telegramService.sendUnreportedReminder(body.botToken, body.chatId, body.feUrl, body.messageText);
   }
 
   @Get('unreported-status')
-  getUnreportedStatus() {
-    return this.telegramService.getTodayUnreportedEmployees();
+  async getUnreportedStatus() {
+    return await this.telegramService.getTodayUnreportedEmployees();
   }
 }
-

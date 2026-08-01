@@ -6,17 +6,17 @@ export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Get()
-  getAll() {
-    return this.employeesService.getAll();
+  async getAll() {
+    return await this.employeesService.getAll();
   }
 
   @Post()
-  create(@Body() body: { name: string; code: string }) {
-    return this.employeesService.create(body.name, body.code);
+  async create(@Body() body: { name: string; code: string }) {
+    return await this.employeesService.create(body.name, body.code);
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string) {
-    return this.employeesService.delete(id);
+  async delete(@Param('id') id: string) {
+    return await this.employeesService.delete(id);
   }
 }

@@ -15,7 +15,7 @@ export interface CreateReportDto {
 export class ReportsService {
   constructor(private readonly db: DatabaseService) {}
 
-  submitReport(dto: CreateReportDto): Report {
+  async submitReport(dto: CreateReportDto): Promise<Report> {
     if (!dto.employeeCode) {
       throw new BadRequestException('Thiếu mã hậu đài nhân viên');
     }
@@ -29,7 +29,7 @@ export class ReportsService {
 
     const reportDate = dto.date || new Date().toISOString().split('T')[0];
 
-    return this.db.addReport({
+    return await this.db.addReport({
       employeeCode: dto.employeeCode,
       date: reportDate,
       registeredCount,
@@ -40,8 +40,8 @@ export class ReportsService {
     });
   }
 
-  private getDeduplicatedReports(): Report[] {
-    const rawReports = this.db.getReports();
+  private async getDeduplicatedReports(): Promise<Report[]> {
+    const rawReports = await this.db.getReports();
     // Sort by createdAt ascending so later reports overwrite earlier ones for the same employee + date
     const sorted = [...rawReports].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
@@ -57,20 +57,22 @@ export class ReportsService {
     return Array.from(latestMap.values());
   }
 
-  getAllReports(): Report[] {
-    return this.getDeduplicatedReports().sort(
+  async getAllReports(): Promise<Report[]> {
+    const reports = await this.getDeduplicatedReports();
+    return reports.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }
 
-  getStats(employeeCode?: string) {
-    let reports = this.getDeduplicatedReports();
+  async getStats(employeeCode?: string) {
+    let reports = await this.getDeduplicatedReports();
     let filterCode = '';
 
     if (employeeCode && employeeCode.trim() !== '') {
       filterCode = employeeCode.trim().toUpperCase();
 
-      const emp = this.db.getEmployees().find(
+      const employees = await this.db.getEmployees();
+      const emp = employees.find(
         (e) => e.code.toUpperCase() === filterCode || e.name.toUpperCase() === filterCode || e.id === filterCode,
       );
 

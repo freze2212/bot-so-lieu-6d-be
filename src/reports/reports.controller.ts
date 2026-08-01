@@ -6,18 +6,17 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post()
-  submitReport(@Body() dto: CreateReportDto) {
-    return this.reportsService.submitReport(dto);
+  async submitReport(@Body() dto: CreateReportDto) {
+    return await this.reportsService.submitReport(dto);
   }
 
   @Get()
-  getAllReports() {
-    return this.reportsService.getAllReports();
+  async getAllReports() {
+    return await this.reportsService.getAllReports();
   }
 
   @Get('stats')
-  getStats(@Query('employeeCode') employeeCode?: string) {
-    return this.reportsService.getStats(employeeCode);
+  async getStats(@Query('employeeCode') employeeCode?: string) {
+    return await this.reportsService.getStats(employeeCode);
   }
 }
-

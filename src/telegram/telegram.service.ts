@@ -90,8 +90,8 @@ export class TelegramService implements OnModuleInit {
     return this.config;
   }
 
-  getTodayUnreportedEmployees(): { missingEmployees: Employee[]; totalEmployeesCount: number; todayFormatted: string } {
-    const allEmployees = this.db.getEmployees();
+  async getTodayUnreportedEmployees(): Promise<{ missingEmployees: Employee[]; totalEmployeesCount: number; todayFormatted: string }> {
+    const allEmployees = await this.db.getEmployees();
 
     const d = new Date();
     const year = d.getFullYear();
@@ -100,7 +100,7 @@ export class TelegramService implements OnModuleInit {
     const todayStr = `${year}-${month}-${day}`;
     const todayFormatted = `${day}/${month}/${year}`;
 
-    const reports = this.db.getReports();
+    const reports = await this.db.getReports();
 
     const reportedCodes = new Set<string>();
     for (const r of reports) {
@@ -276,7 +276,7 @@ export class TelegramService implements OnModuleInit {
       feUrl = `https://${feUrl}`;
     }
 
-    const { missingEmployees, todayFormatted } = this.getTodayUnreportedEmployees();
+    const { missingEmployees, todayFormatted } = await this.getTodayUnreportedEmployees();
 
     let messageText = '';
     const template = customMessageText !== undefined && customMessageText.trim() !== ''

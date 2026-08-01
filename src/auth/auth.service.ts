@@ -9,8 +9,8 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  login(username: string, pass: string) {
-    const admin = this.db.getAdmin();
+  async login(username: string, pass: string) {
+    const admin = await this.db.getAdmin();
     if (username === admin.username && pass === admin.passwordHash) {
       const payload = { username: admin.username, role: 'admin' };
       return {
