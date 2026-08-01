@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'bot-so-lieu-be',
+      name: 'bot-so-lieu-6d-be',
       script: 'dist/main.js',
       instances: 1,
       autorestart: true,
@@ -9,7 +9,7 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
-        PORT: 3001,
+        PORT: 6034,
       },
     },
   ],
