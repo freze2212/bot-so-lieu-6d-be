@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
+import * as bcrypt from 'bcryptjs';
 import { Employee as EmployeeEntity, EmployeeDocument } from './schemas/employee.schema';
 import { Report as ReportEntity, ReportDocument } from './schemas/report.schema';
 import { AdminConfig, AdminConfigDocument } from './schemas/admin.schema';
@@ -43,8 +44,9 @@ export class DatabaseService implements OnModuleInit {
     try {
       const adminCount = await this.adminModel.countDocuments();
       if (adminCount === 0) {
-        await this.adminModel.create({ username: 'admin', passwordHash: 'admin123' });
-        this.logger.log('Seeded default admin account into MongoDB (admin / admin123)');
+        const hashedDefault = await bcrypt.hash('admin123', 10);
+        await this.adminModel.create({ username: 'admin', passwordHash: hashedDefault });
+        this.logger.log('Seeded default admin account into MongoDB with hashed password');
       }
 
       const empCount = await this.employeeModel.countDocuments();
@@ -72,24 +74,36 @@ export class DatabaseService implements OnModuleInit {
     return { username: 'admin', passwordHash: 'admin123' };
   }
 
+  async verifyPassword(inputPass: string, storedHashOrPlain: string): Promise<boolean> {
+    if (!inputPass || !storedHashOrPlain) return false;
+    const cleanInput = inputPass.trim();
+    const cleanStored = storedHashOrPlain.trim();
+
+    if (cleanStored.startsWith('$2a$') || cleanStored.startsWith('$2b$')) {
+      return await bcrypt.compare(cleanInput, cleanStored);
+    }
+    // Fallback for legacy plaintext passwords
+    return cleanInput === cleanStored;
+  }
+
   async updateAdminPassword(oldPassword: string, newPassword: string): Promise<boolean> {
     try {
       const currentAdmin = await this.getAdmin();
-      const currentHash = (currentAdmin.passwordHash || 'admin123').trim();
-      const inputOld = (oldPassword || '').trim();
-      const inputNew = (newPassword || '').trim();
+      const isOldValid = await this.verifyPassword(oldPassword || '', currentAdmin.passwordHash || 'admin123');
 
-      // Accept if old password matches current database password OR default 'admin123'
-      if (inputOld !== currentHash && inputOld !== 'admin123') {
-        this.logger.warn(`Admin password change rejected: old password mismatch (inputOld="${inputOld}", currentHash="${currentHash}")`);
+      if (!isOldValid) {
+        this.logger.warn('Admin password change rejected: old password mismatch');
         return false;
       }
 
-      // Atomically overwrite admin record in MongoDB
-      await this.adminModel.deleteMany({}).exec();
-      await this.adminModel.create({ username: 'admin', passwordHash: inputNew });
+      const newHashed = await bcrypt.hash(newPassword.trim(), 10);
+      await this.adminModel.findOneAndUpdate(
+        { username: 'admin' },
+        { passwordHash: newHashed },
+        { upsert: true, new: true },
+      ).exec();
 
-      this.logger.log(`Admin password overwritten in MongoDB successfully to "${inputNew}"`);
+      this.logger.log('Admin password updated in MongoDB successfully with bcrypt hash');
       return true;
     } catch (err) {
       this.logger.error('Error updating admin password in MongoDB:', err.message);
@@ -119,9 +133,10 @@ export class DatabaseService implements OnModuleInit {
 
   async getEmployeeByCode(code: string): Promise<Employee | undefined> {
     if (!code) return undefined;
+    const safeCode = code.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     try {
       const doc = await this.employeeModel
-        .findOne({ code: { $regex: new RegExp(`^${code.trim()}$`, 'i') } })
+        .findOne({ code: { $regex: new RegExp(`^${safeCode}$`, 'i') } })
         .exec();
       if (doc) {
         return {
@@ -168,24 +183,47 @@ export class DatabaseService implements OnModuleInit {
 
   async deleteEmployee(idOrCode: string): Promise<boolean> {
     if (!idOrCode) return false;
-    try {
-      const targetEmp = await this.getEmployeeByCode(idOrCode);
-      const empCode = targetEmp ? targetEmp.code.toUpperCase() : idOrCode.toUpperCase();
+    const cleanInput = idOrCode.trim();
 
-      let deletedEmp = false;
-      if (targetEmp) {
-        const res = await this.employeeModel.deleteOne({ _id: targetEmp.id }).exec();
-        deletedEmp = res.deletedCount > 0;
-      } else {
-        const res = await this.employeeModel.deleteOne({ code: { $regex: new RegExp(`^${idOrCode.trim()}$`, 'i') } }).exec();
-        deletedEmp = res.deletedCount > 0;
+    try {
+      let empDoc: EmployeeDocument | null = null;
+
+      // 1. Check if idOrCode is a valid MongoDB ObjectId
+      if (Types.ObjectId.isValid(cleanInput)) {
+        empDoc = await this.employeeModel.findById(cleanInput).exec();
       }
 
+      // 2. If not found by ObjectId, search by code
+      if (!empDoc) {
+        const safeCode = cleanInput.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        empDoc = await this.employeeModel.findOne({
+          code: { $regex: new RegExp(`^${safeCode}$`, 'i') },
+        }).exec();
+      }
+
+      let deletedEmp = false;
+      let targetCode = cleanInput;
+
+      if (empDoc) {
+        targetCode = empDoc.code;
+        const res = await this.employeeModel.deleteOne({ _id: empDoc._id }).exec();
+        deletedEmp = (res.deletedCount || 0) > 0;
+      } else {
+        const safeCode = cleanInput.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const res = await this.employeeModel.deleteOne({
+          code: { $regex: new RegExp(`^${safeCode}$`, 'i') },
+        }).exec();
+        deletedEmp = (res.deletedCount || 0) > 0;
+      }
+
+      // 3. Delete all reports belonging to target employee code
+      const safeTargetCode = targetCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const resReports = await this.reportModel.deleteMany({
-        employeeCode: { $regex: new RegExp(`^${empCode.trim()}$`, 'i') },
+        employeeCode: { $regex: new RegExp(`^${safeTargetCode}$`, 'i') },
       }).exec();
 
-      return deletedEmp || resReports.deletedCount > 0;
+      this.logger.log(`Deleted employee "${targetCode}" (empDeleted=${deletedEmp}, reportsDeleted=${resReports.deletedCount || 0})`);
+      return deletedEmp || (resReports.deletedCount || 0) > 0;
     } catch (err) {
       this.logger.error('Error deleting employee from MongoDB:', err.message);
       return false;

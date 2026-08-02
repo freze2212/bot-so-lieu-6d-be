@@ -22,12 +22,15 @@ export class AuthService {
     const dbUser = (admin.username || 'admin').trim().toLowerCase();
     const dbPass = (admin.passwordHash || 'admin123').trim();
 
-    if (reqUser === dbUser && reqPass === dbPass) {
-      const payload = { username: admin.username, role: 'admin' };
-      return {
-        accessToken: this.jwtService.sign(payload),
-        user: { username: admin.username, role: 'admin' },
-      };
+    if (reqUser === dbUser) {
+      const isMatch = await this.db.verifyPassword(reqPass, dbPass);
+      if (isMatch) {
+        const payload = { username: admin.username, role: 'admin' };
+        return {
+          accessToken: this.jwtService.sign(payload),
+          user: { username: admin.username, role: 'admin' },
+        };
+      }
     }
 
     throw new UnauthorizedException('Sai tài khoản hoặc mật khẩu Admin');

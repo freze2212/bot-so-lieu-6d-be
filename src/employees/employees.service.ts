@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { DatabaseService, Employee } from '../database/database.service';
 
 @Injectable()
@@ -21,7 +21,10 @@ export class EmployeesService {
   }
 
   async delete(id: string): Promise<{ success: boolean; message: string }> {
-    await this.db.deleteEmployee(id);
+    const deleted = await this.db.deleteEmployee(id);
+    if (!deleted) {
+      throw new NotFoundException(`Không tìm thấy nhân viên hoặc báo cáo tương ứng với "${id}" để xóa`);
+    }
     return { success: true, message: 'Đã xóa nhân viên và toàn bộ thống kê thành công' };
   }
 }
