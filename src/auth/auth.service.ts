@@ -43,9 +43,9 @@ export class AuthService {
     if (newPassword.trim().length < 6) {
       throw new BadRequestException('Mật khẩu mới phải có ít nhất 6 ký tự');
     }
-    const success = await this.db.updateAdminPassword(oldPassword.trim(), newPassword.trim());
-    if (!success) {
-      throw new BadRequestException('Mật khẩu hiện tại không chính xác');
+    const result = await this.db.updateAdminPassword(oldPassword.trim(), newPassword.trim());
+    if (!result.success) {
+      throw new BadRequestException(result.error || 'Đổi mật khẩu thất bại!');
     }
     return { success: true, message: 'Đổi mật khẩu Admin thành công!' };
   }

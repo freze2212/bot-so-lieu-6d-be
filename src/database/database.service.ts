@@ -86,14 +86,14 @@ export class DatabaseService implements OnModuleInit {
     return cleanInput === cleanStored;
   }
 
-  async updateAdminPassword(oldPassword: string, newPassword: string): Promise<boolean> {
+  async updateAdminPassword(oldPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
     try {
       const currentAdmin = await this.getAdmin();
       const isOldValid = await this.verifyPassword(oldPassword || '', currentAdmin.passwordHash || 'admin123');
 
       if (!isOldValid) {
         this.logger.warn('Admin password change rejected: old password mismatch');
-        return false;
+        return { success: false, error: 'Mật khẩu hiện tại không chính xác' };
       }
 
       const newHashed = await bcrypt.hash(newPassword.trim(), 10);
@@ -104,10 +104,10 @@ export class DatabaseService implements OnModuleInit {
       ).exec();
 
       this.logger.log('Admin password updated in MongoDB successfully with bcrypt hash');
-      return true;
+      return { success: true };
     } catch (err) {
       this.logger.error('Error updating admin password in MongoDB:', err.message);
-      return false;
+      return { success: false, error: `Lỗi ghi MongoDB trên Server: ${err.message}` };
     }
   }
 
