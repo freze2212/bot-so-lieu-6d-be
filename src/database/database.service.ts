@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { Employee as EmployeeEntity, EmployeeDocument } from './schemas/employee.schema';
 import { Report as ReportEntity, ReportDocument } from './schemas/report.schema';
 import { AdminConfig, AdminConfigDocument } from './schemas/admin.schema';
@@ -40,13 +40,19 @@ export class DatabaseService implements OnModuleInit {
     await this.seedInitialData();
   }
 
+  private hashPassword(password: string): string {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    return `${salt}:${hash}`;
+  }
+
   private async seedInitialData() {
     try {
       const adminCount = await this.adminModel.countDocuments();
       if (adminCount === 0) {
-        const hashedDefault = await bcrypt.hash('admin123', 10);
+        const hashedDefault = this.hashPassword('admin123');
         await this.adminModel.create({ username: 'admin', passwordHash: hashedDefault });
-        this.logger.log('Seeded default admin account into MongoDB with hashed password');
+        this.logger.log('Seeded default admin account into MongoDB with crypto hashed password');
       }
 
       const empCount = await this.employeeModel.countDocuments();
@@ -79,9 +85,25 @@ export class DatabaseService implements OnModuleInit {
     const cleanInput = inputPass.trim();
     const cleanStored = storedHashOrPlain.trim();
 
-    if (cleanStored.startsWith('$2a$') || cleanStored.startsWith('$2b$')) {
-      return await bcrypt.compare(cleanInput, cleanStored);
+    if (cleanStored.includes(':')) {
+      const parts = cleanStored.split(':');
+      if (parts.length === 2) {
+        const [salt, originalHash] = parts;
+        const hash = crypto.pbkdf2Sync(cleanInput, salt, 1000, 64, 'sha512').toString('hex');
+        return hash === originalHash;
+      }
     }
+
+    if (cleanStored.startsWith('$2a$') || cleanStored.startsWith('$2b$')) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const bcrypt = require('bcryptjs');
+        return bcrypt.compareSync(cleanInput, cleanStored);
+      } catch (e) {
+        // fallback if bcryptjs not installed
+      }
+    }
+
     // Fallback for legacy plaintext passwords
     return cleanInput === cleanStored;
   }
@@ -96,14 +118,14 @@ export class DatabaseService implements OnModuleInit {
         return { success: false, error: 'Mật khẩu hiện tại không chính xác' };
       }
 
-      const newHashed = await bcrypt.hash(newPassword.trim(), 10);
+      const newHashed = this.hashPassword(newPassword.trim());
       await this.adminModel.findOneAndUpdate(
         { username: 'admin' },
         { passwordHash: newHashed },
         { upsert: true, new: true },
       ).exec();
 
-      this.logger.log('Admin password updated in MongoDB successfully with bcrypt hash');
+      this.logger.log('Admin password updated in MongoDB successfully with crypto hash');
       return { success: true };
     } catch (err) {
       this.logger.error('Error updating admin password in MongoDB:', err.message);
